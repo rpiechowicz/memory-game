@@ -1,0 +1,28 @@
+[*]
+charset = utf-8
+indent_size = 2
+indent_style = space
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{js,jsx,ts,tsx,mjs,vue,json}]
+indent_size = 2
+
+[*.{css,scss}]
+indent_size = 2
+
+[*.sql]
+indent_size = 3
+
+[*.md]
+indent_size = 2
+insert_final_newline = false
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_size = 3
+indent_style = tab
