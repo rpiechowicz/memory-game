@@ -1,25 +1,51 @@
-<script setup>
+<script setup lang="ts">
+import { v4 as uuid } from 'uuid';
 
-
+// Stores
 const weaponStore = useWeaponsStore();
+const userStore = useUserStore();
 
-const canvasRef = ref(null);
+// Difficulty and grid settings
+const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy');
+const gridMap: Record<string, { cols: number; rows: number }> = {
+  easy: { cols: 4, rows: 3 },    // 6 pairs
+  medium: { cols: 5, rows: 4 },  // 10 pairs
+  hard: { cols: 6, rows: 5 },    // 15 pairs
+};
+const gridCols = computed(() => gridMap[selectedDifficulty.value].cols);
+const gridRows = computed(() => gridMap[selectedDifficulty.value].rows);
 
-const rows = 5;
-const cols = 5;
-const cardSize = 100; // adjust canvas size accordingly (5*100 = 500)
+// Game seed (code)
+const seed = ref<string>(uuid());
+const isGameStarted = ref<boolean>(false);
 
-// Backside image for cards
+// Loading/error state
+const isLoading = ref<boolean>(false);
+const error = ref<string | null>(null);
+
+// Canvas reference
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+
+// Card dimensions
+const cardSize = 100;
+
+// Backside image
 const backImage = new Image();
 backImage.src = weaponStore.backImageUrl || '';
 
 // Game state
-const cards = reactive([]);
-const flipped = reactive([]);
-const isProcessing = ref(false);
+interface Card {
+  img: HTMLImageElement;
+  url: string;
+  revealed: boolean;
+  matched: boolean;
+}
+const cards = reactive<Card[]>([]);
+const flipped = reactive<number[]>([]);
+const isProcessing = ref<boolean>(false);
 
-// Shuffle helper
-function shuffle(array) {
+// Utility: shuffle array
+function shuffle<T>(array: T[]): T[] {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
@@ -27,58 +53,70 @@ function shuffle(array) {
   return array;
 }
 
+// Initialize the board based on difficulty and seed
 function initGame() {
-  // Get available weapon images from store
-  const allImages = weaponStore.weapons.map(w => w.image);
-  shuffle(allImages);
-  // For 5x5 = 25 cards, pick 12 pairs and one extra
-  const neededPairs = Math.floor((rows * cols) / 2);
-  const selected = allImages.slice(0, neededPairs + 1);
-  const deck = [];
-  // Create pairs
-  for (let i = 0; i < neededPairs; i++) {
-    deck.push(selected[i], selected[i]);
-  }
-  // Add one extra of the last image to fill odd slot
-  deck.push(selected[neededPairs]);
-  shuffle(deck);
-
-  // Initialize card objects
+  isLoading.value = true;
+  error.value = null;
   cards.splice(0, cards.length);
-  deck.forEach((url) => {
-    const img = new Image();
-    img.src = url;
-    cards.push({ img, url, revealed: false, matched: false });
-  });
+  try {
+    const allImages = weaponStore.weapons.map(w => w.image);
+    shuffle(allImages);
+    const total = gridCols.value * gridRows.value;
+    const pairs = Math.floor(total / 2);
+    const selected = allImages.slice(0, pairs);
+    let deck: string[] = [];
+    selected.forEach(url => deck.push(url, url));
+    if (total % 2 !== 0 && allImages[pairs]) {
+      deck.push(allImages[pairs]);
+    }
+    shuffle(deck);
+    deck.forEach(url => {
+      const img = new Image();
+      img.src = url;
+      cards.push({ img, url, revealed: false, matched: false });
+    });
+  } catch (e) {
+    error.value = (e as Error).message;
+  } finally {
+    isLoading.value = false;
+  }
 }
 
+// Draw the current state onto the canvas
 function drawBoard() {
   const canvas = canvasRef.value;
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  cards.forEach((card, index) => {
-    const x = (index % cols) * cardSize;
-    const y = Math.floor(index / cols) * cardSize;
+  if (!ctx) return;
+  ctx.clearRect(0, 0, gridCols.value * cardSize, gridRows.value * cardSize);
+  cards.forEach((card, i) => {
+    const x = (i % gridCols.value) * cardSize;
+    const y = Math.floor(i / gridCols.value) * cardSize;
     if (card.revealed || card.matched) {
       ctx.drawImage(card.img, x, y, cardSize, cardSize);
     } else {
       ctx.drawImage(backImage, x, y, cardSize, cardSize);
     }
-    // Optional: draw border
     ctx.strokeStyle = '#333';
     ctx.strokeRect(x, y, cardSize, cardSize);
   });
 }
 
-function handleClick(event) {
-  if (isProcessing.value) return;
-  const rect = canvasRef.value.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+// Handle click events on the canvas
+function handleClick(event: MouseEvent) {
+  if (isProcessing.value || isLoading.value || error.value) return;
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  // Account for CSS scaling
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  // Calculate click position in canvas coordinate space
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
   const col = Math.floor(x / cardSize);
   const row = Math.floor(y / cardSize);
-  const idx = row * cols + col;
+  const idx = row * gridCols.value + col;
   const card = cards[idx];
   if (!card || card.revealed || card.matched) return;
 
@@ -103,12 +141,32 @@ function handleClick(event) {
   }
 }
 
+// Reset flipped selections
 function resetSelection() {
   flipped.splice(0, flipped.length);
   isProcessing.value = false;
   drawBoard();
 }
 
+// Start a new game when user clicks
+function startGame(): void {
+  // First show the canvas
+  isGameStarted.value = true;
+  // Initialize game data
+  initGame();
+  // Wait for DOM update so canvas is rendered, then draw
+  nextTick(() => {
+    drawBoard();
+  });
+}
+
+// React to difficulty or seed changes
+watch([selectedDifficulty, seed], () => {
+  initGame();
+  drawBoard();
+});
+
+// On mount, start the game
 onMounted(() => {
   initGame();
   drawBoard();
@@ -117,13 +175,201 @@ onMounted(() => {
 
 
 <template>
-  <canvas ref="canvasRef" :width="cols * cardSize" :height="rows * cardSize" @click="handleClick"></canvas>
+  <div class="min-h-screen bg-gray-900 text-white p-4 w-full">
+    <div class="max-w-6xl mx-auto">
+      <!-- Header -->
+      <header class="mb-8 text-center">
+        <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+          Memory Game - Counter Strike 2
+        </h1>
+      </header>
+
+      <div class="flex flex-col lg:flex-row gap-8">
+        <!-- Left Column: Game -->
+        <div class="flex-1">
+          <!-- Controls -->
+          <div class="bg-gray-800 rounded-lg p-4 mb-6 shadow-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div class="w-full sm:w-64">
+                <label class="block text-sm font-medium text-gray-300 mb-1">Poziom trudności:</label>
+                <select
+                  v-model="selectedDifficulty"
+                  class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                >
+                  <option value="easy">Łatwy (6 par)</option>
+                  <option value="medium">Średni (10 par)</option>
+                  <option value="hard">Trudny (15 par)</option>
+                </select>
+              </div>
+
+              <div class="w-full sm:w-48">
+                <div class="text-sm font-medium text-gray-300 mb-1">Rozmiar planszy:</div>
+                <div class="text-white font-mono bg-gray-700 px-4 py-2 rounded-lg text-center">
+                  {{ gridCols }} × {{ gridRows }}
+                </div>
+              </div>
+
+              <div class="flex-1 w-full sm:w-auto">
+                <label class="block text-sm font-medium text-gray-300 mb-1">Kod gry:</label>
+                <div class="relative">
+                  <input
+                    v-model="seed"
+                    type="text"
+                    class="w-full bg-gray-700 text-white px-4 py-2 pr-10 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    readonly
+                  >
+                  <button
+                    title="Losuj nowy kod"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition"
+                    @click="seed = uuid()"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Game Board -->
+          <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto">
+            <div class="flex justify-center">
+              <!-- Show start button when game hasn't started -->
+              <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center">
+                <h2 class="text-2xl font-bold text-white mb-6">Gotowy na grę?</h2>
+                <p class="text-gray-300 mb-8 max-w-md">Kliknij przycisk poniżej, aby rozpocząć nową grę.</p>
+                <button
+                  @click="startGame"
+                  class="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <span class="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                    </svg>
+                    Rozpocznij grę
+                  </span>
+                </button>
+              </div>
+
+              <div
+                v-else-if="isLoading"
+                class="flex items-center justify-center p-12 text-gray-400"
+              >
+                <svg class="animate-spin h-8 w-8 mr-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Ładowanie gry...</span>
+              </div>
+
+              <div v-else-if="error" class="text-center p-8">
+                <div class="text-red-400 mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <p class="text-lg font-medium text-white mb-4">Wystąpił błąd podczas ładowania gry</p>
+                <p class="text-gray-300 mb-6">{{ error }}</p>
+                <button
+                  @click="startGame()"
+                  class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  Spróbuj ponownie
+                </button>
+              </div>
+
+              <canvas
+                v-else
+                ref="canvasRef"
+                :width="gridCols * cardSize"
+                :height="gridRows * cardSize"
+                @click="handleClick"
+                class="w-full max-w-[500px] h-auto border-4 border-gray-800 rounded-lg shadow-lg cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Info Panel -->
+        <div class="lg:w-80 flex-shrink-0">
+          <div class="bg-gray-800 rounded-xl p-6 shadow-2xl sticky top-4">
+            <h2 class="text-xl font-bold mb-4 text-white">Informacje o grze</h2>
+            
+            <!-- User Info -->
+            <div class="mb-6">
+              <h3 class="text-sm font-medium text-gray-400 mb-2">Gracz</h3>
+              <div class="bg-gray-900 rounded-lg p-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                    {{ userStore.user.username?.charAt(0).toUpperCase() || 'U' }}
+                  </div>
+                  <div>
+                    <p class="font-medium text-white">{{ userStore.user.username || 'Anonimowy Gracz' }}</p>
+                    <p class="text-xs text-gray-400">ID: {{ userStore.user.id?.substring(0, 8) || '---' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Game Stats -->
+            <div class="space-y-4">
+              <div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Poziom trudności</h3>
+                <p class="text-white font-medium">
+                  {{ 
+                    selectedDifficulty === 'easy' ? 'Łatwy' : 
+                    selectedDifficulty === 'medium' ? 'Średni' : 'Trudny'
+                  }}
+                </p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Rozmiar planszy</h3>
+                <p class="text-white font-mono">{{ gridCols }} × {{ gridRows }}</p>
+              </div>
+              
+              <div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Kod gry</h3>
+                <div class="flex items-center gap-2">
+                  <code class="bg-gray-900 text-blue-400 px-3 py-1.5 rounded-md text-sm font-mono">{{ seed }}</code>
+                  <button 
+                    @click="seed = uuid()"
+                    class="text-gray-400 hover:text-white transition"
+                    title="Wygeneruj nowy kod"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Game Instructions -->
+            <div class="mt-8 pt-6 border-t border-gray-700">
+              <h3 class="text-sm font-medium text-gray-400 mb-2">Jak grać?</h3>
+              <ul class="space-y-2 text-sm text-gray-300">
+                <li class="flex items-start gap-2">
+                  <span class="text-blue-500">1.</span>
+                  <span>Kliknij dwie karty, aby je odkryć</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-blue-500">2.</span>
+                  <span>Jeśli karty są takie same, pozostaną odkryte</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="text-blue-500">3.</span>
+                  <span>Znajdź wszystkie pary, aby wygrać</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 
-<style scoped>
-canvas {
-  border: 2px solid #000;
-  cursor: pointer;
-}
-</style>
+import { nextTick } from 'vue';
