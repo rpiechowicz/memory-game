@@ -31,12 +31,12 @@ const cardSize = 100;
 
 // Backside image
 const backImage = new Image();
-backImage.src = weaponStore.backImageUrl || '';
 
 // Game state
 interface Card {
   img: HTMLImageElement;
   url: string;
+  rarityColor: string;
   revealed: boolean;
   matched: boolean;
 }
@@ -59,21 +59,31 @@ function initGame() {
   error.value = null;
   cards.splice(0, cards.length);
   try {
-    const allImages = weaponStore.weapons.map(w => w.image);
-    shuffle(allImages);
+    // Prepare items with image and rarity color
+    const items = shuffle([...weaponStore.weapons]);
     const total = gridCols.value * gridRows.value;
-    const pairs = Math.floor(total / 2);
-    const selected = allImages.slice(0, pairs);
-    let deck: string[] = [];
-    selected.forEach(url => deck.push(url, url));
-    if (total % 2 !== 0 && allImages[pairs]) {
-      deck.push(allImages[pairs]);
+    const pairCount = Math.floor(total / 2);
+    const selectedItems = items.slice(0, pairCount);
+    let deck: { image: string; rarityColor: string }[] = [];
+    selectedItems.forEach(item => {
+      deck.push({ image: item.image, rarityColor: item.rarity.color });
+      deck.push({ image: item.image, rarityColor: item.rarity.color });
+    });
+    if (total % 2 !== 0) {
+      const extra = items[pairCount];
+      deck.push({ image: extra.image, rarityColor: extra.rarity.color });
     }
     shuffle(deck);
-    deck.forEach(url => {
+    deck.forEach(cardInfo => {
       const img = new Image();
-      img.src = url;
-      cards.push({ img, url, revealed: false, matched: false });
+      img.src = cardInfo.image;
+      cards.push({
+        img,
+        url: cardInfo.image,
+        rarityColor: cardInfo.rarityColor,
+        revealed: false,
+        matched: false
+      });
     });
   } catch (e) {
     error.value = (e as Error).message;
@@ -93,11 +103,20 @@ function drawBoard() {
     const x = (i % gridCols.value) * cardSize;
     const y = Math.floor(i / gridCols.value) * cardSize;
     if (card.revealed || card.matched) {
+      // draw gradient background
+      const bgGrad = ctx.createLinearGradient(x, y, x + cardSize, y + cardSize);
+      bgGrad.addColorStop(0, card.rarityColor);
+      bgGrad.addColorStop(1, '#000');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(x, y, cardSize, cardSize);
+      // draw the card image
       ctx.drawImage(card.img, x, y, cardSize, cardSize);
     } else {
+      // draw the card back
       ctx.drawImage(backImage, x, y, cardSize, cardSize);
     }
-    ctx.strokeStyle = '#333';
+    // draw border
+    ctx.strokeStyle = '#131A29';
     ctx.strokeRect(x, y, cardSize, cardSize);
   });
 }
@@ -175,7 +194,7 @@ onMounted(() => {
 
 
 <template>
-  <div class="min-h-screen bg-gray-900 text-white p-4 w-full">
+  <div class="bg-gray-900 text-white p-4 w-full">
     <div class="max-w-6xl mx-auto">
       <!-- Header -->
       <header class="mb-8 text-center">
@@ -233,10 +252,10 @@ onMounted(() => {
           </div>
 
           <!-- Game Board -->
-          <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto">
+          <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto max-h-[480px]">
             <div class="flex justify-center">
               <!-- Show start button when game hasn't started -->
-              <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center">
+              <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center h-[440px]">
                 <h2 class="text-2xl font-bold text-white mb-6">Gotowy na grę?</h2>
                 <p class="text-gray-300 mb-8 max-w-md">Kliknij przycisk poniżej, aby rozpocząć nową grę.</p>
                 <button
@@ -285,7 +304,7 @@ onMounted(() => {
                 :width="gridCols * cardSize"
                 :height="gridRows * cardSize"
                 @click="handleClick"
-                class="w-full max-w-[500px] h-auto border-4 border-gray-800 rounded-lg shadow-lg cursor-pointer"
+                class="w-full max-h-[430px] rounded-lg shadow-lg cursor-pointer"
               />
             </div>
           </div>
@@ -370,6 +389,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-
-
-import { nextTick } from 'vue';
