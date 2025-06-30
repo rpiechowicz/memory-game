@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <div class="flex justify-center items-center p-4">
+  <div class="flex justify-center items-center">
     <GameBoard />
   </div>
 </template>

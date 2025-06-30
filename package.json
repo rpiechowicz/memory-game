@@ -29,6 +29,7 @@
     "@iconify/json": "^2.2.354",
     "@tailwindcss/vite": "^4.1.11",
     "@types/node": "^24.0.7",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^6.0.0",
     "@vue/tsconfig": "^0.7.0",
     "@vueuse/core": "^13.4.0",
@@ -38,6 +39,7 @@
     "unplugin-auto-import": "^19.3.0",
     "unplugin-icons": "^22.1.0",
     "unplugin-vue-components": "^28.8.0",
+    "uuid": "^11.1.0",
     "vite": "^7.0.0",
     "vue-tsc": "^2.2.10"
   }

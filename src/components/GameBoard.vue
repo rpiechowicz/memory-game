@@ -1,125 +1,129 @@
-<script setup lang="ts">
-const weaponsStore = useWeaponsStore()
-const canvasRef = ref<HTMLCanvasElement | null>(null)
+<script setup>
 
-const seed = ref(Math.random().toString(36).substring(2, 10))
-const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy')
 
-function getTileCount(difficulty: string) {
-  switch (difficulty) {
-    case 'easy':
-      return 12
-    case 'medium':
-      return 20
-    case 'hard':
-      return 30
-    default:
-      return 12
+const weaponStore = useWeaponsStore();
+
+const canvasRef = ref(null);
+
+const rows = 5;
+const cols = 5;
+const cardSize = 100; // adjust canvas size accordingly (5*100 = 500)
+
+// Backside image for cards
+const backImage = new Image();
+backImage.src = weaponStore.backImageUrl || '';
+
+// Game state
+const cards = reactive([]);
+const flipped = reactive([]);
+const isProcessing = ref(false);
+
+// Shuffle helper
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
   }
+  return array;
 }
 
-function seededShuffle<T>(array: T[], seed: string): T[] {
-  const result = [...array]
-  let s = 0
-  for (let i = 0; i < seed.length; i++) {
-    s += seed.charCodeAt(i)
+function initGame() {
+  // Get available weapon images from store
+  const allImages = weaponStore.weapons.map(w => w.image);
+  shuffle(allImages);
+  // For 5x5 = 25 cards, pick 12 pairs and one extra
+  const neededPairs = Math.floor((rows * cols) / 2);
+  const selected = allImages.slice(0, neededPairs + 1);
+  const deck = [];
+  // Create pairs
+  for (let i = 0; i < neededPairs; i++) {
+    deck.push(selected[i], selected[i]);
   }
+  // Add one extra of the last image to fill odd slot
+  deck.push(selected[neededPairs]);
+  shuffle(deck);
 
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = s % (i + 1)
-    ;[result[i], result[j]] = [result[j], result[i]]
-    s = (s * 9301 + 49297) % 233280
-  }
-
-  return result
+  // Initialize card objects
+  cards.splice(0, cards.length);
+  deck.forEach((url) => {
+    const img = new Image();
+    img.src = url;
+    cards.push({ img, url, revealed: false, matched: false });
+  });
 }
 
-function getRandomTiles(): any[] {
-  const pool = [...weaponsStore.weapons]
-  const count = getTileCount(selectedDifficulty.value)
-  const shuffled = seededShuffle(pool, seed.value).slice(0, count / 2)
-  return [...shuffled, ...shuffled].sort(() => Math.random() - 0.5)
-}
+function drawBoard() {
+  const canvas = canvasRef.value;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-const tiles = ref<any[]>([])
-
-watch([seed, selectedDifficulty], () => {
-  tiles.value = getRandomTiles()
-  drawTiles()
-}, { immediate: true })
-
-function drawTiles() {
-  const canvas = canvasRef.value
-  if (!canvas)
-    return
-  const ctx = canvas.getContext('2d')
-  if (!ctx)
-    return
-
-  const tileSize = 100
-  const gap = 10
-  const cols = 4
-  const rows = Math.ceil(getTileCount(selectedDifficulty.value) / cols)
-  canvas.width = cols * (tileSize + gap) - gap
-  canvas.height = rows * (tileSize + gap) - gap
-
-  let x = 0
-  let y = 0
-  let loadedCount = 0
-  const tileImages: { img: HTMLImageElement, x: number, y: number }[] = []
-
-  tiles.value.forEach((tile, i) => {
-    const img = new Image()
-    img.src = tile.image
-    const pos = { x, y }
-    tileImages.push({ img, ...pos })
-
-    img.onload = () => {
-      loadedCount++
-      if (loadedCount === tiles.value.length) {
-        tileImages.forEach(({ img, x, y }) => {
-          ctx.fillStyle = '#444'
-          ctx.fillRect(x, y, tileSize, tileSize)
-          ctx.drawImage(img, x + 5, y + 5, tileSize - 10, tileSize - 10)
-        })
-      }
+  cards.forEach((card, index) => {
+    const x = (index % cols) * cardSize;
+    const y = Math.floor(index / cols) * cardSize;
+    if (card.revealed || card.matched) {
+      ctx.drawImage(card.img, x, y, cardSize, cardSize);
+    } else {
+      ctx.drawImage(backImage, x, y, cardSize, cardSize);
     }
+    // Optional: draw border
+    ctx.strokeStyle = '#333';
+    ctx.strokeRect(x, y, cardSize, cardSize);
+  });
+}
 
-    x += tileSize + gap
-    if ((i + 1) % cols === 0) {
-      x = 0
-      y += tileSize + gap
+function handleClick(event) {
+  if (isProcessing.value) return;
+  const rect = canvasRef.value.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const col = Math.floor(x / cardSize);
+  const row = Math.floor(y / cardSize);
+  const idx = row * cols + col;
+  const card = cards[idx];
+  if (!card || card.revealed || card.matched) return;
+
+  card.revealed = true;
+  flipped.push(idx);
+  drawBoard();
+
+  if (flipped.length === 2) {
+    isProcessing.value = true;
+    const [i1, i2] = flipped;
+    if (cards[i1].url === cards[i2].url) {
+      cards[i1].matched = true;
+      cards[i2].matched = true;
+      resetSelection();
+    } else {
+      setTimeout(() => {
+        cards[i1].revealed = false;
+        cards[i2].revealed = false;
+        resetSelection();
+      }, 1000);
     }
-  })
+  }
+}
+
+function resetSelection() {
+  flipped.splice(0, flipped.length);
+  isProcessing.value = false;
+  drawBoard();
 }
 
 onMounted(() => {
-  const canvas = canvasRef.value
-  if (!canvas)
-    return
-
-  drawTiles()
-})
+  initGame();
+  drawBoard();
+});
 </script>
 
+
 <template>
-  <div class="p-4 space-y-4">
-    <div class="flex gap-4 items-center">
-      <label>
-        Seed:
-        <input v-model="seed" class="border px-2 py-1 rounded" />
-      </label>
-      <label>
-        Poziom:
-        <select v-model="selectedDifficulty" class="border px-2 py-1 rounded">
-          <option value="easy">Łatwy</option>
-          <option value="medium">Średni</option>
-          <option value="hard">Trudny</option>
-        </select>
-      </label>
-    </div>
-    <div class="flex justify-center items-center">
-      <canvas ref="canvasRef" class="border border-gray-500 rounded" />
-    </div>
-  </div>
+  <canvas ref="canvasRef" :width="cols * cardSize" :height="rows * cardSize" @click="handleClick"></canvas>
 </template>
+
+
+<style scoped>
+canvas {
+  border: 2px solid #000;
+  cursor: pointer;
+}
+</style>
