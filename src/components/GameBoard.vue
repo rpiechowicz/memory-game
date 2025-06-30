@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { v4 as uuid } from 'uuid';
+import confetti from 'canvas-confetti';
 
 // Stores
 const weaponStore = useWeaponsStore();
@@ -149,6 +150,7 @@ function handleClick(event: MouseEvent) {
 
   if (flipped.length === 2) {
     moves.value++;
+    gameStore.currentGame!.moves = moves.value;
     isProcessing.value = true;
     const [i1, i2] = flipped;
     if (cards[i1].url === cards[i2].url) {
@@ -159,6 +161,11 @@ function handleClick(event: MouseEvent) {
         isGameFinished.value = true;
         const duration = Math.floor((Date.now() - startTime.value) / 1000);
         gameStore.finishGame({ moves: moves.value, time: duration });
+        confetti({
+          particleCount: 100,
+          startVelocity: 30,
+          spread: 360,
+        });
       }
     } else {
       setTimeout(() => {
@@ -198,6 +205,7 @@ watch(selectedDifficulty, () => {
   isGameStarted.value = false;
   isGameFinished.value = false;
   moves.value = 0;
+  gameStore.cancelGame();
   resetSelection();
 });
 
@@ -372,7 +380,7 @@ onMounted(() => {
               <div>
                 <h3 class="text-sm font-medium text-gray-400 mb-1">Czas</h3>
                 <p class="text-white font-medium">
-                  {{ (gameStore.currentGame?.time || 0) + ' sekund' }}
+                  {{ (gameStore.currentGame?.time || '-') }} {{ gameStore.currentGame?.time ? 'sekund' : '' }}
                 </p>
               </div>
               

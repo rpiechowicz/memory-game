@@ -58,6 +58,18 @@ export const useGameStore = defineStore('game', () => {
     stopInterval()
   }
 
+  function cancelGame() {
+    if (!currentGame.value) {
+      return
+    }
+
+    currentGame.value.status = 'canceled'
+    currentGame.value.updatedAt = new Date().toISOString()
+    stopInterval()
+
+    currentGame.value = null
+  }
+
   function clearGames() {
     gameStorage.games.value = []
     userStore.user.games!.length = 0
@@ -100,6 +112,7 @@ export const useGameStore = defineStore('game', () => {
     bestTime,
     setNewGame,
     finishGame,
+    cancelGame,
     clearGames
   }
 })
