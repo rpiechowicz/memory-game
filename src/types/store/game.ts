@@ -5,6 +5,7 @@ export interface GameDto {
   time: number
   moves: number
   difficulty: 'easy' | 'medium' | 'hard'
+  status: 'in_progress' | 'finished'
   createdAt: string
   updatedAt: string
 }

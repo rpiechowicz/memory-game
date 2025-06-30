@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 // Stores
 const weaponStore = useWeaponsStore();
 const userStore = useUserStore();
+const gameStore = useGameStore();
 
 // Difficulty and grid settings
 const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy');
@@ -18,6 +19,9 @@ const gridRows = computed(() => gridMap[selectedDifficulty.value].rows);
 // Game seed (code)
 const seed = ref<string>(uuid());
 const isGameStarted = ref<boolean>(false);
+const moves = ref<number>(0);
+const startTime = ref<number>(0);
+const isGameFinished = ref<boolean>(false);
 
 // Loading/error state
 const isLoading = ref<boolean>(false);
@@ -144,18 +148,29 @@ function handleClick(event: MouseEvent) {
   drawBoard();
 
   if (flipped.length === 2) {
+    moves.value++;
     isProcessing.value = true;
     const [i1, i2] = flipped;
     if (cards[i1].url === cards[i2].url) {
       cards[i1].matched = true;
       cards[i2].matched = true;
       resetSelection();
+      if (cards.every(c => c.matched)) {
+        isGameFinished.value = true;
+        const duration = Math.floor((Date.now() - startTime.value) / 1000);
+        gameStore.finishGame({ moves: moves.value, time: duration });
+      }
     } else {
       setTimeout(() => {
         cards[i1].revealed = false;
         cards[i2].revealed = false;
         resetSelection();
-      }, 1000);
+        if (cards.every(c => c.matched)) {
+          isGameFinished.value = true;
+          const duration = Math.floor((Date.now() - startTime.value) / 1000);
+          gameStore.finishGame({ moves: moves.value, time: duration });
+        }
+      }, 500);
     }
   }
 }
@@ -169,20 +184,21 @@ function resetSelection() {
 
 // Start a new game when user clicks
 function startGame(): void {
-  // First show the canvas
   isGameStarted.value = true;
-  // Initialize game data
+  isGameFinished.value = false;
+  moves.value = 0;
+  startTime.value = Date.now();
+  gameStore.setNewGame({ difficulty: selectedDifficulty.value });
   initGame();
-  // Wait for DOM update so canvas is rendered, then draw
-  nextTick(() => {
-    drawBoard();
-  });
+  nextTick(() => drawBoard());
 }
 
-// React to difficulty or seed changes
-watch([selectedDifficulty, seed], () => {
-  initGame();
-  drawBoard();
+// React to difficulty changes: reset game state when difficulty changes
+watch(selectedDifficulty, () => {
+  isGameStarted.value = false;
+  isGameFinished.value = false;
+  moves.value = 0;
+  resetSelection();
 });
 
 // On mount, start the game
@@ -255,7 +271,7 @@ onMounted(() => {
           <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto max-h-[480px]">
             <div class="flex justify-center">
               <!-- Show start button when game hasn't started -->
-              <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center h-[440px]">
+              <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center h-[430px]">
                 <h2 class="text-2xl font-bold text-white mb-6">Gotowy na grę?</h2>
                 <p class="text-gray-300 mb-8 max-w-md">Kliknij przycisk poniżej, aby rozpocząć nową grę.</p>
                 <button
@@ -267,6 +283,26 @@ onMounted(() => {
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
                     </svg>
                     Rozpocznij grę
+                  </span>
+                </button>
+              </div>
+
+              <div v-else-if="isGameFinished" class="flex flex-col items-center justify-center p-12 text-center h-[430px]">
+                <h2 class="text-2xl font-bold text-white mb-6">Gratulacje! Ukończyłeś grę!</h2>
+                <div class="text-gray-300 mb-8 max-w-md">
+                  <p>Czas: {{ Math.floor((Date.now() - startTime) / 1000) }} sekund</p>
+                  <p>Ruchy: {{ moves }}</p>
+                </div>
+
+                <button 
+                  @click="startGame"
+                  class="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                >
+                  <span class="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                    </svg>
+                    Rozpocznij nową grę
                   </span>
                 </button>
               </div>
@@ -312,7 +348,7 @@ onMounted(() => {
 
         <!-- Right Column: Info Panel -->
         <div class="lg:w-80 flex-shrink-0">
-          <div class="bg-gray-800 rounded-xl p-6 shadow-2xl sticky top-4">
+          <div class="bg-gray-800 rounded-xl p-6 shadow-2xl sticky top-4 h-[600px]">
             <h2 class="text-xl font-bold mb-4 text-white">Informacje o grze</h2>
             
             <!-- User Info -->
@@ -334,54 +370,38 @@ onMounted(() => {
             <!-- Game Stats -->
             <div class="space-y-4">
               <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Poziom trudności</h3>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Czas</h3>
                 <p class="text-white font-medium">
-                  {{ 
-                    selectedDifficulty === 'easy' ? 'Łatwy' : 
-                    selectedDifficulty === 'medium' ? 'Średni' : 'Trudny'
-                  }}
+                  {{ (gameStore.currentGame?.time || 0) + ' sekund' }}
                 </p>
               </div>
               
               <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Rozmiar planszy</h3>
-                <p class="text-white font-mono">{{ gridCols }} × {{ gridRows }}</p>
-              </div>
-              
-              <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Kod gry</h3>
-                <div class="flex items-center gap-2">
-                  <code class="bg-gray-900 text-blue-400 px-3 py-1.5 rounded-md text-sm font-mono">{{ seed }}</code>
-                  <button 
-                    @click="seed = uuid()"
-                    class="text-gray-400 hover:text-white transition"
-                    title="Wygeneruj nowy kod"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                </div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Ilość ruchów</h3>
+                <p class="text-white font-mono">{{ gameStore.currentGame?.moves || '-' }}</p>
               </div>
             </div>
 
             <!-- Game Instructions -->
-            <div class="mt-8 pt-6 border-t border-gray-700">
-              <h3 class="text-sm font-medium text-gray-400 mb-2">Jak grać?</h3>
-              <ul class="space-y-2 text-sm text-gray-300">
-                <li class="flex items-start gap-2">
-                  <span class="text-blue-500">1.</span>
-                  <span>Kliknij dwie karty, aby je odkryć</span>
-                </li>
-                <li class="flex items-start gap-2">
-                  <span class="text-blue-500">2.</span>
-                  <span>Jeśli karty są takie same, pozostaną odkryte</span>
-                </li>
-                <li class="flex items-start gap-2">
-                  <span class="text-blue-500">3.</span>
-                  <span>Znajdź wszystkie pary, aby wygrać</span>
-                </li>
-              </ul>
+            <div class="mt-8 pt-6 border-t border-gray-700 space-y-4">          
+              <div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Ilość rozegranych gier</h3>
+                <p class="text-white font-medium">
+                  {{ userStore.user.games?.length || '-' }}
+                </p>
+              </div>
+              <div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Najlepszy czas</h3>
+                <p class="text-white font-medium">
+                  {{ gameStore.games.length > 0 ? gameStore.bestTime + ' sekund': '-' }}
+                </p>
+              </div>
+              <div>
+                <h3 class="text-sm font-medium text-gray-400 mb-1">Najmniejsza ilość ruchów</h3>
+                <p class="text-white font-medium">
+                  {{ gameStore.games.length > 0 ? gameStore.bestMoves : '-' }}
+                </p>
+              </div>
             </div>
           </div>
         </div>
