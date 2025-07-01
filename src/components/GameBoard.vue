@@ -31,8 +31,11 @@ const error = ref<string | null>(null);
 // Canvas reference
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
+// Device Pixel Ratio for HiDPI screens
+const dpr = window.devicePixelRatio || 1
+
 // Card dimensions
-const cardSize = 100;
+const cardSize = 140;
 
 // Backside image
 const backImage = new Image();
@@ -103,6 +106,14 @@ function drawBoard() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+  // Set CSS size
+  canvas.style.width = `${gridCols.value * cardSize}px`;
+  canvas.style.height = `${gridRows.value * cardSize}px`;
+  // Set actual resolution for HiDPI
+  canvas.width = gridCols.value * cardSize * dpr;
+  canvas.height = gridRows.value * cardSize * dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform before scaling
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, gridCols.value * cardSize, gridRows.value * cardSize);
   cards.forEach((card, i) => {
     const x = (i % gridCols.value) * cardSize;
@@ -132,12 +143,9 @@ function handleClick(event: MouseEvent) {
   const canvas = canvasRef.value;
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
-  // Account for CSS scaling
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  // Calculate click position in canvas coordinate space
-  const x = (event.clientX - rect.left) * scaleX;
-  const y = (event.clientY - rect.top) * scaleY;
+  // Use CSS pixel coordinates for tile detection
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
   const col = Math.floor(x / cardSize);
   const row = Math.floor(y / cardSize);
   const idx = row * gridCols.value + col;
@@ -276,7 +284,7 @@ onMounted(() => {
           </div>
 
           <!-- Game Board -->
-          <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto max-h-[480px]">
+          <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto">
             <div class="flex justify-center">
               <!-- Show start button when game hasn't started -->
               <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center h-[430px]">
@@ -348,7 +356,7 @@ onMounted(() => {
                 :width="gridCols * cardSize"
                 :height="gridRows * cardSize"
                 @click="handleClick"
-                class="w-full max-h-[430px] rounded-lg shadow-lg cursor-pointer"
+                class="w-full rounded-lg shadow-lg cursor-pointer"
               />
             </div>
           </div>
