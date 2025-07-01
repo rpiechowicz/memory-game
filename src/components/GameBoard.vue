@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { v4 as uuid } from 'uuid';
 import confetti from 'canvas-confetti';
+import clickSound from '@/assets/audio/click.wav';
+import pairSound from '@/assets/audio/pair.wav';
+import endSound from '@/assets/audio/end.wav';
 
 // Stores
 const weaponStore = useWeaponsStore();
 const userStore = useUserStore();
 const gameStore = useGameStore();
+
+const clickAudio = new Audio(clickSound)
+const pairAudio = new Audio(pairSound)
+const endAudio = new Audio(endSound)
 
 // Difficulty and grid settings
 const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy');
@@ -152,6 +159,9 @@ function handleClick(event: MouseEvent) {
   const card = cards[idx];
   if (!card || card.revealed || card.matched) return;
 
+  clickAudio.currentTime = 0
+  clickAudio.play()
+
   card.revealed = true;
   flipped.push(idx);
   drawBoard();
@@ -164,11 +174,15 @@ function handleClick(event: MouseEvent) {
     if (cards[i1].url === cards[i2].url) {
       cards[i1].matched = true;
       cards[i2].matched = true;
+      pairAudio.currentTime = 0
+      pairAudio.play()
       resetSelection();
       if (cards.every(c => c.matched)) {
         isGameFinished.value = true;
         const duration = Math.floor((Date.now() - startTime.value) / 1000);
         gameStore.finishGame({ moves: moves.value, time: duration });
+        endAudio.currentTime = 0
+        endAudio.play()
         confetti({
           particleCount: 100,
           startVelocity: 30,
