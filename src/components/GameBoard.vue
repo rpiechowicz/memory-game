@@ -301,6 +301,11 @@ function startGame(): void {
   nextTick(() => drawBoard())
 }
 
+// Handle beforeunload event
+function handleBeforeUnload() {
+  gameStore.cancelGame()
+}
+
 // When grid size changes (CUSTOM), regenerate seed and reset board
 // Apply seed string changes entered by user
 watch(seed, (val) => {
@@ -386,8 +391,14 @@ watch(selectedDifficulty, (val) => {
 
 // On mount, start the game
 onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
   initGame()
   drawBoard()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 </script>
 
