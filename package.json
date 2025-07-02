@@ -5,7 +5,7 @@
   "private": true,
   "description": "Memory game",
   "author": "Rafał Piechowicz <rpiechowicz@icloud.com>",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://github.com/rpiechowicz/memory-game",
   "repository": {
     "type": "git",
