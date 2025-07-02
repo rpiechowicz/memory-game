@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { GameCard, GameDifficulty } from '@/types/store/game'
 import confetti from 'canvas-confetti'
-import { v4 as uuid } from 'uuid'
 import MdiAlertCircle from '~icons/mdi/alert-circle'
 import MdiContentCopy from '~icons/mdi/content-copy'
 import MdiPlayCircle from '~icons/mdi/play-circle'
@@ -22,25 +21,70 @@ const isGameStarted = ref<boolean>(false)
 const isGameFinished = ref<boolean>(false)
 const isError = computed<boolean>(() => weaponStore.weapons.length === 0)
 
+const gridMap: Record<GameDifficulty, { cols: number, rows: number }> = {
+  [GameDifficulties.EASY]: { cols: 4, rows: 4 },
+  [GameDifficulties.MEDIUM]: { cols: 5, rows: 5 },
+  [GameDifficulties.HARD]: { cols: 6, rows: 6 },
+  [GameDifficulties.CUSTOM]: { cols: 2, rows: 2 },
+}
+
 const startTime = ref<number>(0)
 const moves = ref<number>(0)
-const seed = ref<string>(uuid())
 const selectedDifficulty = ref<GameDifficulty>(GameDifficulties.EASY)
+const gridCols = ref<number>(gridMap[selectedDifficulty.value].cols)
+const gridRows = ref<number>(gridMap[selectedDifficulty.value].rows)
+const seed = ref<string>(`${selectedDifficulty.value}-${gridCols.value}-${gridRows.value}`)
 
 const cards = reactive<GameCard[]>([])
 const flipped = reactive<number[]>([])
 const isProcessing = ref<boolean>(false)
 const cardSize = ref<number>(140)
-const dpr = ref<number>(window.devicePixelRatio || 1)
 
-const gridMap: Record<GameDifficulty, { cols: number, rows: number }> = {
-  [GameDifficulties.EASY]: { cols: 4, rows: 3 },
-  [GameDifficulties.MEDIUM]: { cols: 5, rows: 4 },
-  [GameDifficulties.HARD]: { cols: 6, rows: 5 }
+// Adjust card size so that entire board fits horizontally
+function updateCardSize(): void {
+  // Get available width from canvas container (or window as fallback)
+  const containerWidth = canvasRef.value?.parentElement?.clientWidth ?? window.innerWidth
+  const maxWidth = containerWidth - 32 // small margin
+  const maxHeight = window.innerHeight - 300 // header & controls space
+
+  const sizeByWidth = Math.floor(maxWidth / gridCols.value)
+  const sizeByHeight = Math.floor(maxHeight / gridRows.value)
+
+  const optimal = Math.min(sizeByWidth, sizeByHeight)
+  // Keep cards between 40 and 140 px
+  cardSize.value = Math.max(40, Math.min(140, optimal))
 }
 
-const gridCols = computed(() => gridMap[selectedDifficulty.value].cols)
-const gridRows = computed(() => gridMap[selectedDifficulty.value].rows)
+// Recompute on load and when window resizes
+onMounted(() => {
+  updateCardSize()
+  window.addEventListener('resize', updateCardSize)
+})
+
+onUnmounted(() => window.removeEventListener('resize', updateCardSize))
+const dpr = ref<number>(window.devicePixelRatio || 1)
+
+// Sanitize grid size (allowed range 2-99)
+function sanitizeGridValue(value: number): number {
+  if (value > 10) {
+    return 10
+  }
+  if (value < 2) {
+    return 2
+  }
+  return value
+}
+
+// Handlers for custom grid size inputs
+function onGridColsChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  gridCols.value = sanitizeGridValue(Number(input.value))
+}
+
+function onGridRowsChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  gridRows.value = sanitizeGridValue(Number(input.value))
+}
 
 // Copy seed to clipboard
 function copySeed(): void {
@@ -61,20 +105,25 @@ function initGame() {
   cards.splice(0, cards.length)
 
   try {
-    // Prepare items with image and rarity color
+    // Build a deck large enough for any grid size (up to 99×99)
     const deck = ref<{ image: string, rarityColor: string }[]>([])
-    const items = shuffle([...weaponStore.weapons])
+    const allItems = shuffle([...weaponStore.weapons])
+    if (allItems.length === 0)
+      return // avoid crash when weapon list empty
+
     const total = gridCols.value * gridRows.value
     const pairCount = Math.floor(total / 2)
-    const selectedItems = items.slice(0, pairCount)
 
-    selectedItems.forEach((item) => {
+    // Fill deck cycling through available items if grid is larger than weapon pool
+    for (let i = 0; i < pairCount; i++) {
+      const item = allItems[i % allItems.length]
       deck.value.push({ image: item.image, rarityColor: item.rarity.color })
       deck.value.push({ image: item.image, rarityColor: item.rarity.color })
-    })
+    }
 
+    // Handle odd number of cards
     if (total % 2 !== 0) {
-      const extra = items[pairCount]
+      const extra = allItems[pairCount % allItems.length]
       deck.value.push({ image: extra.image, rarityColor: extra.rarity.color })
     }
 
@@ -252,8 +301,74 @@ function startGame(): void {
   nextTick(() => drawBoard())
 }
 
+// When grid size changes (CUSTOM), regenerate seed and reset board
+// Apply seed string changes entered by user
+watch(seed, (val) => {
+  const match = val.match(/^(\w+)-(\d+)-(\d+)$/)
+
+  if (!match) {
+    return
+  }
+  const [, diffStr, colsStr, rowsStr] = match
+  const diff = diffStr as GameDifficulty
+
+  if (!Object.values(GameDifficulties).includes(diff)) {
+    return
+  }
+
+  selectedDifficulty.value = diff
+
+  if (diff === GameDifficulties.CUSTOM) {
+    const cols = sanitizeGridValue(Number(colsStr))
+    const rows = sanitizeGridValue(Number(rowsStr))
+    gridCols.value = cols
+    gridRows.value = rows
+  }
+  else {
+    gridCols.value = gridMap[diff].cols
+    gridRows.value = gridMap[diff].rows
+  }
+
+  updateCardSize()
+
+  if (isGameStarted.value) {
+    // fully restart game to reset stats and timer
+
+    isGameStarted.value = false
+    isGameFinished.value = false
+    moves.value = 0
+    startTime.value = Date.now()
+
+    gameStore.cancelGame()
+    resetSelection()
+  }
+  else {
+    resetSelection()
+  }
+})
+
+watch([gridCols, gridRows], () => {
+  updateCardSize()
+
+  seed.value = `${selectedDifficulty.value}-${gridCols.value}-${gridRows.value}`
+
+  if (selectedDifficulty.value === GameDifficulties.CUSTOM) {
+    resetSelection()
+    if (isGameStarted.value) {
+      initGame()
+      nextTick(() => drawBoard())
+    }
+  }
+})
+
 // React to difficulty changes: reset game state when difficulty changes
-watch(selectedDifficulty, () => {
+watch(selectedDifficulty, (val) => {
+  if (val !== GameDifficulties.CUSTOM) {
+    gridCols.value = gridMap[val].cols
+    gridRows.value = gridMap[val].rows
+  }
+
+  updateCardSize()
   isGameStarted.value = false
   isGameFinished.value = false
   moves.value = 0
@@ -281,30 +396,61 @@ onMounted(() => {
                 <label class="block text-sm font-medium text-gray-300 mb-1">Poziom trudności:</label>
                 <select
                   v-model="selectedDifficulty"
-                  class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  class="w-full bg-gray-700 text-white px-4 py-3 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 >
                   <option value="easy">Łatwy (6 par)</option>
                   <option value="medium">Średni (10 par)</option>
                   <option value="hard">Trudny (15 par)</option>
+                  <option value="custom">Własny</option>
                 </select>
               </div>
 
               <div class="w-full sm:w-48">
                 <div class="text-sm font-medium text-gray-300 mb-1">Rozmiar planszy:</div>
-                <div class="text-white font-mono bg-gray-700 px-4 py-2 rounded-lg text-center">
-                  {{ gridCols }} × {{ gridRows }}
+                <div class="text-white font-mono bg-gray-700 px-4  rounded-lg text-center" :class="{ 'py-3': selectedDifficulty !== GameDifficulties.CUSTOM }">
+                  <div v-if="selectedDifficulty !== GameDifficulties.CUSTOM">
+                    {{ gridCols }} × {{ gridRows }}
+                  </div>
+
+                  <div v-if="selectedDifficulty === GameDifficulties.CUSTOM" class="flex items-center gap-2 py-2 w-full">
+                    <div>
+                      <input
+                        v-model="gridCols"
+                        type="number"
+                        max="10"
+                        min="2"
+                        class="w-full bg-gray-700 text-white px-3 py-1 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        @change="onGridColsChange"
+                      >
+                    </div>
+
+                    <div>x</div>
+
+                    <div>
+                      <input
+                        v-model="gridRows"
+                        type="number"
+                        max="10"
+                        min="2"
+                        class="w-full bg-gray-700 text-white px-3 py-1 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        @change="onGridRowsChange"
+                      >
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div class="flex-1 w-full sm:w-auto">
                 <label class="block text-sm font-medium text-gray-300 mb-1">Kod gry:</label>
                 <div class="relative">
-                  <input
-                    v-model="seed"
-                    type="text"
-                    class="w-full bg-gray-700 text-white px-4 py-2 pr-10 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                    readonly
-                  >
+                  <div>
+                    <input
+                      v-model="seed"
+                      type="text"
+                      class="w-full bg-gray-700 text-white px-4 py-3 pr-10 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    >
+                  </div>
+
                   <button
                     title="Losuj nowy kod"
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition"

@@ -2,6 +2,7 @@ export const GameDifficulties = {
   EASY: 'easy',
   MEDIUM: 'medium',
   HARD: 'hard',
+  CUSTOM: 'custom',
 } as const
 
 export const GameStatuses = {
