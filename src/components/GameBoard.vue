@@ -356,6 +356,7 @@ watch([gridCols, gridRows], () => {
 
   if (selectedDifficulty.value === GameDifficulties.CUSTOM) {
     resetSelection()
+
     if (isGameStarted.value) {
       initGame()
       nextTick(() => drawBoard())
@@ -373,6 +374,7 @@ watch(selectedDifficulty, (val) => {
   // update seed for new difficulty
   seed.value = `${val}-${gridCols.value}-${gridRows.value}`
   updateCardSize()
+  
   isGameStarted.value = false
   isGameFinished.value = false
   moves.value = 0
