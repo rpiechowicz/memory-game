@@ -22,10 +22,10 @@ const isGameFinished = ref<boolean>(false)
 const isError = computed<boolean>(() => weaponStore.weapons.length === 0)
 
 const gridMap: Record<GameDifficulty, { cols: number, rows: number }> = {
-  [GameDifficulties.EASY]: { cols: 4, rows: 4 },
-  [GameDifficulties.MEDIUM]: { cols: 5, rows: 5 },
-  [GameDifficulties.HARD]: { cols: 6, rows: 6 },
-  [GameDifficulties.CUSTOM]: { cols: 2, rows: 2 },
+  [GameDifficulties.EASY]: { cols: 4, rows: 5 },
+  [GameDifficulties.MEDIUM]: { cols: 5, rows: 6 },
+  [GameDifficulties.HARD]: { cols: 6, rows: 7 },
+  [GameDifficulties.CUSTOM]: { cols: 2, rows: 3 },
 }
 
 const startTime = ref<number>(0)
@@ -374,7 +374,7 @@ watch(selectedDifficulty, (val) => {
   // update seed for new difficulty
   seed.value = `${val}-${gridCols.value}-${gridRows.value}`
   updateCardSize()
-  
+
   isGameStarted.value = false
   isGameFinished.value = false
   moves.value = 0
