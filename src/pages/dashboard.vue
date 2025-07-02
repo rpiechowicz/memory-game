@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <div class="flex gap-6">
+  <div class="flex flex-col lg:flex-row gap-6">
     <GameBoard />
     <UserInfo />
   </div>

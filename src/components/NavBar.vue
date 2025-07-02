@@ -4,10 +4,10 @@ const route = useRoute()
 
 <template>
   <nav class="text-white pb-4">
-    <div class="max-w-7xl mx-auto px-4">
-      <div class="flex justify-between h-16 items-center">
+    <div class="px-4">
+      <div class="flex justify-between lg:flex-row lg:mb-0 flex-col mb-16 h-16 items-center">
         <header class="text-center">
-          <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 class="mb-4 text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
             Memory Game - Counter Strike 2
           </h1>
         </header>
@@ -20,6 +20,7 @@ const route = useRoute()
           >
             Strona główna
           </router-link>
+
           <router-link
             to="/games"
             class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors duration-200"

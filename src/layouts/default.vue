@@ -8,15 +8,19 @@ watch(() => route.fullPath, () => {
 </script>
 
 <template>
-  <div class="w-7xl mx-auto">
-    <NavBar />
+  <div class="flex items-center justify-center flex-col min-w-dvw min-h-dvh px-6 py-6">
+    <div class="xl:w-6xl w-full mx-auto">
+      <NavBar />
 
-    <router-view>
-      <template #default="{ Component }">
-        <transition name="zoom-fade" mode="out-in" appear>
-          <component :is="Component" />
-        </transition>
-      </template>
-    </router-view>
+      <router-view>
+        <template #default="{ Component }">
+          <transition name="zoom-fade" mode="out-in" appear>
+            <component :is="Component" />
+          </transition>
+        </template>
+      </router-view>
+    </div>
+
+    <Footer />
   </div>
 </template>

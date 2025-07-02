@@ -3,13 +3,13 @@ const weaponsStore = useWeaponsStore()
 const userStore = useUserStore()
 
 onMounted(async () => {
-  // await weaponsStore.fetchWeapons()
+  await weaponsStore.fetchWeapons()
   await userStore.setUser()
 })
 </script>
 
 <template>
-  <div class="min-h-dvh min-w-dvw bg-gray-900 flex items-center justify-center py-4 px-4">
+  <div class="min-h-dvh min-w-dvw bg-gray-900">
     <router-view />
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { GameDto } from '@/types/store/game'
+import type { GameDifficulty, GameDto, GameStatus } from '@/types/store/game'
+import { GameDifficulties, GameStatuses } from '@/types/store/game'
 
 const gameStore = useGameStore()
 
@@ -16,26 +17,26 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-function translateStatus(status: string): string {
+function translateStatus(status: GameStatus): string {
   switch (status) {
-    case 'in_progress':
+    case GameStatuses.IN_PROGRESS:
       return 'W toku'
-    case 'finished':
+    case GameStatuses.FINISHED:
       return 'Zakończone'
-    case 'canceled':
+    case GameStatuses.CANCELED:
       return 'Anulowane'
     default:
       return status
   }
 }
 
-function translateDifficulty(difficulty: string): string {
+function translateDifficulty(difficulty: GameDifficulty): string {
   switch (difficulty) {
-    case 'easy':
+    case GameDifficulties.EASY:
       return 'Łatwy'
-    case 'medium':
+    case GameDifficulties.MEDIUM:
       return 'Średni'
-    case 'hard':
+    case GameDifficulties.HARD:
       return 'Trudny'
     default:
       return difficulty
@@ -44,9 +45,9 @@ function translateDifficulty(difficulty: string): string {
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto space-y-6 px-4">
+  <div class="space-y-6 px-4">
     <div class="flex justify-between">
-      <h2 class="text-3xl font-bold text-white">Tablica gier</h2>
+      <h2 class="text-2xl font-bold text-white lg:text-3xl">Tablica gier</h2>
 
       <button
         v-if="games.length"
@@ -57,8 +58,8 @@ function translateDifficulty(difficulty: string): string {
       </button>
     </div>
 
-    <div v-if="games.length" class="overflow-x-auto rounded-lg ring-1 ring-slate-700">
-      <table class="min-w-full text-sm text-slate-200 bg-slate-800">
+    <div v-if="games.length" class="w-full overflow-x-auto rounded-lg ring-1 ring-slate-700">
+      <table class="min-w-full text-sm text-slate-200 bg-slate-800 table-auto">
         <thead class="bg-slate-700 text-blue-400 uppercase text-xs tracking-wider">
           <tr>
             <th class="px-4 py-3 text-left">ID</th>
@@ -76,7 +77,7 @@ function translateDifficulty(difficulty: string): string {
             <td class="px-4 py-2 whitespace-nowrap">{{ game.moves }}</td>
             <td class="px-4 py-2 whitespace-nowrap">{{ formatTime(game.time) }}</td>
             <td class="px-4 py-2 whitespace-nowrap">
-              <span :class="{ 'text-green-500': game.status === 'finished', 'text-red-500': game.status === 'canceled' }">
+              <span :class="{ 'text-green-500': game.status === GameStatuses.FINISHED, 'text-red-500': game.status === GameStatuses.CANCELED }">
                 {{ translateStatus(game.status) }}
               </span>
             </td>
