@@ -22,9 +22,9 @@ const isGameFinished = ref<boolean>(false)
 const isError = computed<boolean>(() => weaponStore.weapons.length === 0)
 
 const gridMap: Record<GameDifficulty, { cols: number, rows: number }> = {
-  [GameDifficulties.EASY]: { cols: 4, rows: 5 },
-  [GameDifficulties.MEDIUM]: { cols: 5, rows: 6 },
-  [GameDifficulties.HARD]: { cols: 6, rows: 7 },
+  [GameDifficulties.EASY]: { cols: 5, rows: 4 },
+  [GameDifficulties.MEDIUM]: { cols: 6, rows: 5 },
+  [GameDifficulties.HARD]: { cols: 7, rows: 6 },
   [GameDifficulties.CUSTOM]: { cols: 2, rows: 3 },
 }
 
