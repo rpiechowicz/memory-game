@@ -55,13 +55,6 @@ function updateCardSize(): void {
   cardSize.value = Math.max(40, Math.min(140, optimal))
 }
 
-// Recompute on load and when window resizes
-onMounted(() => {
-  updateCardSize()
-  window.addEventListener('resize', updateCardSize)
-})
-
-onUnmounted(() => window.removeEventListener('resize', updateCardSize))
 const dpr = ref<number>(window.devicePixelRatio || 1)
 
 // Sanitize grid size (allowed range 2-99)
@@ -392,12 +385,15 @@ watch(selectedDifficulty, (val) => {
 // On mount, start the game
 onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('resize', updateCardSize)
+  updateCardSize()
 
   initGame()
   drawBoard()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('resize', updateCardSize)
   window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 </script>
