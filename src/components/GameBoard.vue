@@ -1,61 +1,51 @@
 <script setup lang="ts">
+import type { GameCard, GameDifficulty } from '@/types/store/game'
 import confetti from 'canvas-confetti'
 import { v4 as uuid } from 'uuid'
-import clickSound from '@/assets/audio/click.wav'
-import endSound from '@/assets/audio/end.wav'
-import pairSound from '@/assets/audio/pair.wav'
+import MdiAlertCircle from '~icons/mdi/alert-circle'
+import MdiContentCopy from '~icons/mdi/content-copy'
+import MdiPlayCircle from '~icons/mdi/play-circle'
+import { clickSound, endSound, pairSound } from '@/assets/audio'
+import { GameDifficulties, GameStatuses } from '@/types/store/game'
 
 const weaponStore = useWeaponsStore()
 const gameStore = useGameStore()
 
-const clickAudio = new Audio(clickSound)
-const pairAudio = new Audio(pairSound)
-const endAudio = new Audio(endSound)
+const clickAudio: HTMLAudioElement = new Audio(clickSound)
+const pairAudio: HTMLAudioElement = new Audio(pairSound)
+const endAudio: HTMLAudioElement = new Audio(endSound)
+const backImage: HTMLImageElement = new Image()
 
-// Difficulty and grid settings
-const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy')
-const gridMap: Record<string, { cols: number, rows: number }> = {
-  easy: { cols: 4, rows: 3 }, // 6 pairs
-  medium: { cols: 5, rows: 4 }, // 10 pairs
-  hard: { cols: 6, rows: 5 }, // 15 pairs
+const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasRef')
+
+const isGameStarted = ref<boolean>(false)
+const isGameFinished = ref<boolean>(false)
+const isError = computed<boolean>(() => weaponStore.weapons.length === 0)
+
+const startTime = ref<number>(0)
+const moves = ref<number>(0)
+const seed = ref<string>(uuid())
+const selectedDifficulty = ref<GameDifficulty>(GameDifficulties.EASY)
+
+const cards = reactive<GameCard[]>([])
+const flipped = reactive<number[]>([])
+const isProcessing = ref<boolean>(false)
+const cardSize = ref<number>(140)
+const dpr = ref<number>(window.devicePixelRatio || 1)
+
+const gridMap: Record<GameDifficulty, { cols: number, rows: number }> = {
+  [GameDifficulties.EASY]: { cols: 4, rows: 3 },
+  [GameDifficulties.MEDIUM]: { cols: 5, rows: 4 },
+  [GameDifficulties.HARD]: { cols: 6, rows: 5 }
 }
+
 const gridCols = computed(() => gridMap[selectedDifficulty.value].cols)
 const gridRows = computed(() => gridMap[selectedDifficulty.value].rows)
 
-// Game seed (code)
-const seed = ref<string>(uuid())
-const isGameStarted = ref<boolean>(false)
-const moves = ref<number>(0)
-const startTime = ref<number>(0)
-const isGameFinished = ref<boolean>(false)
-
-// Loading/error state
-const isLoading = ref<boolean>(false)
-const error = ref<string | null>(null)
-
-// Canvas reference
-const canvasRef = ref<HTMLCanvasElement | null>(null)
-
-// Device Pixel Ratio for HiDPI screens
-const dpr = window.devicePixelRatio || 1
-
-// Card dimensions
-const cardSize = 140
-
-// Backside image
-const backImage = new Image()
-
-// Game state
-interface Card {
-  img: HTMLImageElement
-  url: string
-  rarityColor: string
-  revealed: boolean
-  matched: boolean
+// Copy seed to clipboard
+function copySeed(): void {
+  navigator.clipboard.writeText(seed.value)
 }
-const cards = reactive<Card[]>([])
-const flipped = reactive<number[]>([])
-const isProcessing = ref<boolean>(false)
 
 // Utility: shuffle array
 function shuffle<T>(array: T[]): T[] {
@@ -68,26 +58,29 @@ function shuffle<T>(array: T[]): T[] {
 
 // Initialize the board based on difficulty and seed
 function initGame() {
-  isLoading.value = true
-  error.value = null
   cards.splice(0, cards.length)
+
   try {
     // Prepare items with image and rarity color
+    const deck = ref<{ image: string, rarityColor: string }[]>([])
     const items = shuffle([...weaponStore.weapons])
     const total = gridCols.value * gridRows.value
     const pairCount = Math.floor(total / 2)
     const selectedItems = items.slice(0, pairCount)
-    let deck: { image: string, rarityColor: string }[] = []
+
     selectedItems.forEach((item) => {
-      deck.push({ image: item.image, rarityColor: item.rarity.color })
-      deck.push({ image: item.image, rarityColor: item.rarity.color })
+      deck.value.push({ image: item.image, rarityColor: item.rarity.color })
+      deck.value.push({ image: item.image, rarityColor: item.rarity.color })
     })
+
     if (total % 2 !== 0) {
       const extra = items[pairCount]
-      deck.push({ image: extra.image, rarityColor: extra.rarity.color })
+      deck.value.push({ image: extra.image, rarityColor: extra.rarity.color })
     }
-    shuffle(deck)
-    deck.forEach((cardInfo) => {
+
+    shuffle(deck.value)
+
+    deck.value.forEach((cardInfo) => {
       const img = new Image()
       img.src = cardInfo.image
       cards.push({
@@ -100,68 +93,74 @@ function initGame() {
     })
   }
   catch (e) {
-    error.value = (e as Error).message
-  }
-  finally {
-    isLoading.value = false
+    console.error(e)
   }
 }
 
 // Draw the current state onto the canvas
 function drawBoard() {
-  const canvas = canvasRef.value
-  if (!canvas)
+  if (!canvasRef.value)
     return
-  const ctx = canvas.getContext('2d')
+
+  const ctx = canvasRef.value.getContext('2d')
   if (!ctx)
     return
+
   // Set CSS size
-  canvas.style.width = `${gridCols.value * cardSize}px`
-  canvas.style.height = `${gridRows.value * cardSize}px`
+  canvasRef.value.style.width = `${gridCols.value * cardSize.value}px`
+  canvasRef.value.style.height = `${gridRows.value * cardSize.value}px`
+
   // Set actual resolution for HiDPI
-  canvas.width = gridCols.value * cardSize * dpr
-  canvas.height = gridRows.value * cardSize * dpr
+  canvasRef.value.width = gridCols.value * cardSize.value * dpr.value
+  canvasRef.value.height = gridRows.value * cardSize.value * dpr.value
+
   ctx.setTransform(1, 0, 0, 1, 0, 0) // Reset transform before scaling
-  ctx.scale(dpr, dpr)
-  ctx.clearRect(0, 0, gridCols.value * cardSize, gridRows.value * cardSize)
+  ctx.scale(dpr.value, dpr.value)
+  ctx.clearRect(0, 0, gridCols.value * cardSize.value, gridRows.value * cardSize.value)
+
   cards.forEach((card, i) => {
-    const x = (i % gridCols.value) * cardSize
-    const y = Math.floor(i / gridCols.value) * cardSize
+    const x = (i % gridCols.value) * cardSize.value
+    const y = Math.floor(i / gridCols.value) * cardSize.value
     if (card.revealed || card.matched) {
       // draw gradient background
-      const bgGrad = ctx.createLinearGradient(x, y, x + cardSize, y + cardSize)
+      const bgGrad = ctx.createLinearGradient(x, y, x + cardSize.value, y + cardSize.value)
       bgGrad.addColorStop(0, card.rarityColor)
       bgGrad.addColorStop(1, '#000')
+
       ctx.fillStyle = bgGrad
-      ctx.fillRect(x, y, cardSize, cardSize)
+      ctx.fillRect(x, y, cardSize.value, cardSize.value)
+
       // draw the card image
-      ctx.drawImage(card.img, x, y, cardSize, cardSize)
+      ctx.drawImage(card.img, x, y, cardSize.value, cardSize.value)
     }
     else {
       // draw the card back
-      ctx.drawImage(backImage, x, y, cardSize, cardSize)
+      ctx.drawImage(backImage, x, y, cardSize.value, cardSize.value)
     }
     // draw border
     ctx.strokeStyle = '#131A29'
-    ctx.strokeRect(x, y, cardSize, cardSize)
+    ctx.strokeRect(x, y, cardSize.value, cardSize.value)
   })
 }
 
 // Handle click events on the canvas
 function handleClick(event: MouseEvent) {
-  if (isProcessing.value || isLoading.value || error.value)
+  if (isProcessing.value)
     return
-  const canvas = canvasRef.value
-  if (!canvas)
+
+  if (!canvasRef.value)
     return
-  const rect = canvas.getBoundingClientRect()
+
+  const rect = canvasRef.value.getBoundingClientRect()
+
   // Use CSS pixel coordinates for tile detection
   const x = event.clientX - rect.left
   const y = event.clientY - rect.top
-  const col = Math.floor(x / cardSize)
-  const row = Math.floor(y / cardSize)
+  const col = Math.floor(x / cardSize.value)
+  const row = Math.floor(y / cardSize.value)
   const idx = row * gridCols.value + col
   const card = cards[idx]
+
   if (!card || card.revealed || card.matched)
     return
 
@@ -177,18 +176,25 @@ function handleClick(event: MouseEvent) {
     gameStore.currentGame!.moves = moves.value
     isProcessing.value = true
     const [i1, i2] = flipped
+
     if (cards[i1].url === cards[i2].url) {
       cards[i1].matched = true
       cards[i2].matched = true
+
       pairAudio.currentTime = 0
       pairAudio.play()
+
       resetSelection()
+
       if (cards.every(c => c.matched)) {
         isGameFinished.value = true
         const duration = Math.floor((Date.now() - startTime.value) / 1000)
+
         gameStore.finishGame({ moves: moves.value, time: duration })
+
         endAudio.currentTime = 0
         endAudio.play()
+
         confetti({
           particleCount: 100,
           startVelocity: 30,
@@ -200,11 +206,23 @@ function handleClick(event: MouseEvent) {
       setTimeout(() => {
         cards[i1].revealed = false
         cards[i2].revealed = false
+
         resetSelection()
+
         if (cards.every(c => c.matched)) {
           isGameFinished.value = true
           const duration = Math.floor((Date.now() - startTime.value) / 1000)
+
           gameStore.finishGame({ moves: moves.value, time: duration })
+
+          endAudio.currentTime = 0
+          endAudio.play()
+
+          confetti({
+            particleCount: 100,
+            startVelocity: 30,
+            spread: 360,
+          })
         }
       }, 500)
     }
@@ -220,10 +238,15 @@ function resetSelection() {
 
 // Start a new game when user clicks
 function startGame(): void {
+  if (gameStore.currentGame?.status === GameStatuses.IN_PROGRESS) {
+    gameStore.cancelGame()
+  }
+
   isGameStarted.value = true
   isGameFinished.value = false
   moves.value = 0
   startTime.value = Date.now()
+
   gameStore.setNewGame({ difficulty: selectedDifficulty.value })
   initGame()
   nextTick(() => drawBoard())
@@ -234,6 +257,8 @@ watch(selectedDifficulty, () => {
   isGameStarted.value = false
   isGameFinished.value = false
   moves.value = 0
+  startTime.value = Date.now()
+
   gameStore.cancelGame()
   resetSelection()
 })
@@ -250,7 +275,6 @@ onMounted(() => {
     <div class="mx-auto">
       <div class="flex flex-col lg:flex-row gap-8">
         <div class="flex-1">
-          <!-- Controls -->
           <div class="bg-gray-800 rounded-lg p-4 mb-6 shadow-lg">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
               <div class="w-full sm:w-64">
@@ -284,22 +308,18 @@ onMounted(() => {
                   <button
                     title="Losuj nowy kod"
                     class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition"
-                    @click="seed = uuid()"
+                    @click="copySeed"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
+                    <MdiContentCopy class="h-5 w-5" />
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Game Board -->
           <div class="bg-gray-800 rounded-xl p-4 md:p-6 shadow-2xl overflow-auto">
             <div class="flex justify-center">
-              <!-- Show start button when game hasn't started -->
-              <div v-if="!isGameStarted" class="flex flex-col items-center justify-center p-12 text-center h-[430px]">
+              <div v-if="!isGameStarted && !isError" class="flex flex-col items-center justify-center p-12 text-center h-[430px]">
                 <h2 class="text-2xl font-bold text-white mb-6">Gotowy na grę?</h2>
                 <p class="text-gray-300 mb-8 max-w-md">Kliknij przycisk poniżej, aby rozpocząć nową grę.</p>
                 <button
@@ -307,9 +327,7 @@ onMounted(() => {
                   @click="startGame"
                 >
                   <span class="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                    </svg>
+                    <MdiPlayCircle class="h-5 w-5 mr-2" />
                     Rozpocznij grę
                   </span>
                 </button>
@@ -327,36 +345,20 @@ onMounted(() => {
                   @click="startGame"
                 >
                   <span class="flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
-                    </svg>
+                    <MdiPlayCircle class="h-5 w-5 mr-2" />
                     Rozpocznij nową grę
                   </span>
                 </button>
               </div>
 
-              <div
-                v-else-if="isLoading"
-                class="flex items-center justify-center p-12 text-gray-400"
-              >
-                <svg class="animate-spin h-8 w-8 mr-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Ładowanie gry...</span>
-              </div>
-
-              <div v-else-if="error" class="text-center p-8">
+              <div v-else-if="isError" class="flex items-center flex-col text-center p-8">
                 <div class="text-red-400 mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+                  <MdiAlertCircle class="h-12 w-12" />
                 </div>
                 <p class="text-lg font-medium text-white mb-4">Wystąpił błąd podczas ładowania gry</p>
-                <p class="text-gray-300 mb-6">{{ error }}</p>
                 <button
                   class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-                  @click="startGame()"
+                  @click="weaponStore.fetchWeapons()"
                 >
                   Spróbuj ponownie
                 </button>

@@ -1,5 +1,6 @@
-import type { GameDto } from '@/types/store/game'
+import type { GameDifficulty, GameDto } from '@/types/store/game'
 import { v4 as uuid } from 'uuid'
+import { GameStatuses } from '@/types/store/game'
 
 const userStore = useUserStore()
 
@@ -13,7 +14,7 @@ export const useGameStore = defineStore('game', () => {
   const games = computed<GameDto[]>(() => gameStorage.games.value)
 
   const bestMoves = computed<number>(() => games.value.reduce((best, current) => {
-    if (current.status !== 'finished')
+    if (current.status !== GameStatuses.FINISHED)
       return best
     if (!best || current.moves < best) {
       return current.moves
@@ -22,7 +23,7 @@ export const useGameStore = defineStore('game', () => {
   }, 0))
 
   const bestTime = computed<number>(() => games.value.reduce((best, current) => {
-    if (current.status !== 'finished')
+    if (current.status !== GameStatuses.FINISHED)
       return best
     if (!best || current.time < best) {
       return current.time
@@ -30,7 +31,7 @@ export const useGameStore = defineStore('game', () => {
     return best
   }, 0))
 
-  function setNewGame(payload: { difficulty: 'easy' | 'medium' | 'hard' }) {
+  function setNewGame(payload: { difficulty: GameDifficulty }) {
     const newGame: GameDto = {
       id: uuid(),
       userId: userStore.user.id!,
@@ -38,7 +39,7 @@ export const useGameStore = defineStore('game', () => {
       moves: 0,
       time: 0,
       difficulty: payload.difficulty,
-      status: 'in_progress',
+      status: GameStatuses.IN_PROGRESS,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -55,17 +56,17 @@ export const useGameStore = defineStore('game', () => {
 
     currentGame.value.moves = payload.moves
     currentGame.value.time = payload.time
-    currentGame.value.status = 'finished'
+    currentGame.value.status = GameStatuses.FINISHED
     currentGame.value.updatedAt = new Date().toISOString()
     stopInterval()
   }
 
   function cancelGame() {
-    if (!currentGame.value || currentGame.value.status !== 'in_progress') {
+    if (!currentGame.value || currentGame.value.status !== GameStatuses.IN_PROGRESS) {
       return
     }
 
-    currentGame.value.status = 'canceled'
+    currentGame.value.status = GameStatuses.CANCELED
     currentGame.value.updatedAt = new Date().toISOString()
     stopInterval()
 

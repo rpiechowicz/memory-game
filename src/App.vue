@@ -3,7 +3,7 @@ const weaponsStore = useWeaponsStore()
 const userStore = useUserStore()
 
 onMounted(async () => {
-  await weaponsStore.fetchWeapons()
+  // await weaponsStore.fetchWeapons()
   await userStore.setUser()
 })
 </script>
