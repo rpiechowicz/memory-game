@@ -323,10 +323,12 @@ watch(seed, (val) => {
     const rows = sanitizeGridValue(Number(rowsStr))
     gridCols.value = cols
     gridRows.value = rows
+    seed.value = `${diff}-${cols}-${rows}`
   }
   else {
     gridCols.value = gridMap[diff].cols
     gridRows.value = gridMap[diff].rows
+    seed.value = `${diff}-${gridMap[diff].cols}-${gridMap[diff].rows}`
   }
 
   updateCardSize()
@@ -368,6 +370,8 @@ watch(selectedDifficulty, (val) => {
     gridRows.value = gridMap[val].rows
   }
 
+  // update seed for new difficulty
+  seed.value = `${val}-${gridCols.value}-${gridRows.value}`
   updateCardSize()
   isGameStarted.value = false
   isGameFinished.value = false
@@ -446,6 +450,7 @@ onMounted(() => {
                   <div>
                     <input
                       v-model="seed"
+                      :readonly="selectedDifficulty !== GameDifficulties.CUSTOM"
                       type="text"
                       class="w-full bg-gray-700 text-white px-4 py-3 pr-10 rounded-lg border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                     >
