@@ -13,7 +13,8 @@ export const useGameStore = defineStore('game', () => {
   const games = computed<GameDto[]>(() => gameStorage.games.value)
 
   const bestMoves = computed<number>(() => games.value.reduce((best, current) => {
-    if (current.status !== 'finished') return best
+    if (current.status !== 'finished')
+      return best
     if (!best || current.moves < best) {
       return current.moves
     }
@@ -21,7 +22,8 @@ export const useGameStore = defineStore('game', () => {
   }, 0))
 
   const bestTime = computed<number>(() => games.value.reduce((best, current) => {
-    if (current.status !== 'finished') return best
+    if (current.status !== 'finished')
+      return best
     if (!best || current.time < best) {
       return current.time
     }
@@ -59,7 +61,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function cancelGame() {
-    if (!currentGame.value) {
+    if (!currentGame.value || currentGame.value.status !== 'in_progress') {
       return
     }
 
@@ -100,7 +102,8 @@ export const useGameStore = defineStore('game', () => {
   watch(() => currentGame.value, () => {
     if (currentGame.value) {
       startInterval()
-    } else {
+    }
+    else {
       stopInterval()
     }
   })

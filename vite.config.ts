@@ -18,7 +18,7 @@ export default defineConfig({
     vue(),
     tailwindcss(),
     AutoImport({
-      imports: ['vue', 'pinia', '@vueuse/core'],
+      imports: ['vue', 'pinia', '@vueuse/core', 'vue-router'],
       dirs: ['src/composables', 'src/store'],
       dts: 'src/auto-imports.d.ts'
     }),

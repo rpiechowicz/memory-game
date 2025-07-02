@@ -3,7 +3,7 @@ import { ofetch } from 'ofetch'
 
 export default async function fetchData<T>(
   request: FetchRequest,
-  options?: FetchOptions<'json', any>,
+  options?: FetchOptions<'json', T>,
 ): Promise<T> {
   return ofetch<T>(request, { ...options, responseType: 'json' })
 }

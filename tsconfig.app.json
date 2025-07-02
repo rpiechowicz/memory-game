@@ -6,8 +6,14 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "~icons": [
+        "node_modules/@iconify/json"
       ]
     },
+    "types": [
+      "@iconify/json"
+    ],
     /* Linting */
     "strict": true,
     "noFallthroughCasesInSwitch": true,

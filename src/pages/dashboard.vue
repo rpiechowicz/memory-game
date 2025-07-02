@@ -2,7 +2,8 @@
 </script>
 
 <template>
-  <div class="flex justify-center items-center">
+  <div class="flex gap-6">
     <GameBoard />
+    <UserInfo />
   </div>
 </template>

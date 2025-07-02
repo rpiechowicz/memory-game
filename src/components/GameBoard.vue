@@ -1,256 +1,254 @@
 <script setup lang="ts">
-import { v4 as uuid } from 'uuid';
-import confetti from 'canvas-confetti';
-import clickSound from '@/assets/audio/click.wav';
-import pairSound from '@/assets/audio/pair.wav';
-import endSound from '@/assets/audio/end.wav';
+import confetti from 'canvas-confetti'
+import { v4 as uuid } from 'uuid'
+import clickSound from '@/assets/audio/click.wav'
+import endSound from '@/assets/audio/end.wav'
+import pairSound from '@/assets/audio/pair.wav'
 
-// Stores
-const weaponStore = useWeaponsStore();
-const userStore = useUserStore();
-const gameStore = useGameStore();
+const weaponStore = useWeaponsStore()
+const gameStore = useGameStore()
 
 const clickAudio = new Audio(clickSound)
 const pairAudio = new Audio(pairSound)
 const endAudio = new Audio(endSound)
 
 // Difficulty and grid settings
-const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy');
-const gridMap: Record<string, { cols: number; rows: number }> = {
-  easy: { cols: 4, rows: 3 },    // 6 pairs
-  medium: { cols: 5, rows: 4 },  // 10 pairs
-  hard: { cols: 6, rows: 5 },    // 15 pairs
-};
-const gridCols = computed(() => gridMap[selectedDifficulty.value].cols);
-const gridRows = computed(() => gridMap[selectedDifficulty.value].rows);
+const selectedDifficulty = ref<'easy' | 'medium' | 'hard'>('easy')
+const gridMap: Record<string, { cols: number, rows: number }> = {
+  easy: { cols: 4, rows: 3 }, // 6 pairs
+  medium: { cols: 5, rows: 4 }, // 10 pairs
+  hard: { cols: 6, rows: 5 }, // 15 pairs
+}
+const gridCols = computed(() => gridMap[selectedDifficulty.value].cols)
+const gridRows = computed(() => gridMap[selectedDifficulty.value].rows)
 
 // Game seed (code)
-const seed = ref<string>(uuid());
-const isGameStarted = ref<boolean>(false);
-const moves = ref<number>(0);
-const startTime = ref<number>(0);
-const isGameFinished = ref<boolean>(false);
+const seed = ref<string>(uuid())
+const isGameStarted = ref<boolean>(false)
+const moves = ref<number>(0)
+const startTime = ref<number>(0)
+const isGameFinished = ref<boolean>(false)
 
 // Loading/error state
-const isLoading = ref<boolean>(false);
-const error = ref<string | null>(null);
+const isLoading = ref<boolean>(false)
+const error = ref<string | null>(null)
 
 // Canvas reference
-const canvasRef = ref<HTMLCanvasElement | null>(null);
+const canvasRef = ref<HTMLCanvasElement | null>(null)
 
 // Device Pixel Ratio for HiDPI screens
 const dpr = window.devicePixelRatio || 1
 
 // Card dimensions
-const cardSize = 140;
+const cardSize = 140
 
 // Backside image
-const backImage = new Image();
+const backImage = new Image()
 
 // Game state
 interface Card {
-  img: HTMLImageElement;
-  url: string;
-  rarityColor: string;
-  revealed: boolean;
-  matched: boolean;
+  img: HTMLImageElement
+  url: string
+  rarityColor: string
+  revealed: boolean
+  matched: boolean
 }
-const cards = reactive<Card[]>([]);
-const flipped = reactive<number[]>([]);
-const isProcessing = ref<boolean>(false);
+const cards = reactive<Card[]>([])
+const flipped = reactive<number[]>([])
+const isProcessing = ref<boolean>(false)
 
 // Utility: shuffle array
 function shuffle<T>(array: T[]): T[] {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    [array[i], array[j]] = [array[j], array[i]]
   }
-  return array;
+  return array
 }
 
 // Initialize the board based on difficulty and seed
 function initGame() {
-  isLoading.value = true;
-  error.value = null;
-  cards.splice(0, cards.length);
+  isLoading.value = true
+  error.value = null
+  cards.splice(0, cards.length)
   try {
     // Prepare items with image and rarity color
-    const items = shuffle([...weaponStore.weapons]);
-    const total = gridCols.value * gridRows.value;
-    const pairCount = Math.floor(total / 2);
-    const selectedItems = items.slice(0, pairCount);
-    let deck: { image: string; rarityColor: string }[] = [];
-    selectedItems.forEach(item => {
-      deck.push({ image: item.image, rarityColor: item.rarity.color });
-      deck.push({ image: item.image, rarityColor: item.rarity.color });
-    });
+    const items = shuffle([...weaponStore.weapons])
+    const total = gridCols.value * gridRows.value
+    const pairCount = Math.floor(total / 2)
+    const selectedItems = items.slice(0, pairCount)
+    let deck: { image: string, rarityColor: string }[] = []
+    selectedItems.forEach((item) => {
+      deck.push({ image: item.image, rarityColor: item.rarity.color })
+      deck.push({ image: item.image, rarityColor: item.rarity.color })
+    })
     if (total % 2 !== 0) {
-      const extra = items[pairCount];
-      deck.push({ image: extra.image, rarityColor: extra.rarity.color });
+      const extra = items[pairCount]
+      deck.push({ image: extra.image, rarityColor: extra.rarity.color })
     }
-    shuffle(deck);
-    deck.forEach(cardInfo => {
-      const img = new Image();
-      img.src = cardInfo.image;
+    shuffle(deck)
+    deck.forEach((cardInfo) => {
+      const img = new Image()
+      img.src = cardInfo.image
       cards.push({
         img,
         url: cardInfo.image,
         rarityColor: cardInfo.rarityColor,
         revealed: false,
         matched: false
-      });
-    });
-  } catch (e) {
-    error.value = (e as Error).message;
-  } finally {
-    isLoading.value = false;
+      })
+    })
+  }
+  catch (e) {
+    error.value = (e as Error).message
+  }
+  finally {
+    isLoading.value = false
   }
 }
 
 // Draw the current state onto the canvas
 function drawBoard() {
-  const canvas = canvasRef.value;
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  const canvas = canvasRef.value
+  if (!canvas)
+    return
+  const ctx = canvas.getContext('2d')
+  if (!ctx)
+    return
   // Set CSS size
-  canvas.style.width = `${gridCols.value * cardSize}px`;
-  canvas.style.height = `${gridRows.value * cardSize}px`;
+  canvas.style.width = `${gridCols.value * cardSize}px`
+  canvas.style.height = `${gridRows.value * cardSize}px`
   // Set actual resolution for HiDPI
-  canvas.width = gridCols.value * cardSize * dpr;
-  canvas.height = gridRows.value * cardSize * dpr;
-  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform before scaling
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, gridCols.value * cardSize, gridRows.value * cardSize);
+  canvas.width = gridCols.value * cardSize * dpr
+  canvas.height = gridRows.value * cardSize * dpr
+  ctx.setTransform(1, 0, 0, 1, 0, 0) // Reset transform before scaling
+  ctx.scale(dpr, dpr)
+  ctx.clearRect(0, 0, gridCols.value * cardSize, gridRows.value * cardSize)
   cards.forEach((card, i) => {
-    const x = (i % gridCols.value) * cardSize;
-    const y = Math.floor(i / gridCols.value) * cardSize;
+    const x = (i % gridCols.value) * cardSize
+    const y = Math.floor(i / gridCols.value) * cardSize
     if (card.revealed || card.matched) {
       // draw gradient background
-      const bgGrad = ctx.createLinearGradient(x, y, x + cardSize, y + cardSize);
-      bgGrad.addColorStop(0, card.rarityColor);
-      bgGrad.addColorStop(1, '#000');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(x, y, cardSize, cardSize);
+      const bgGrad = ctx.createLinearGradient(x, y, x + cardSize, y + cardSize)
+      bgGrad.addColorStop(0, card.rarityColor)
+      bgGrad.addColorStop(1, '#000')
+      ctx.fillStyle = bgGrad
+      ctx.fillRect(x, y, cardSize, cardSize)
       // draw the card image
-      ctx.drawImage(card.img, x, y, cardSize, cardSize);
-    } else {
+      ctx.drawImage(card.img, x, y, cardSize, cardSize)
+    }
+    else {
       // draw the card back
-      ctx.drawImage(backImage, x, y, cardSize, cardSize);
+      ctx.drawImage(backImage, x, y, cardSize, cardSize)
     }
     // draw border
-    ctx.strokeStyle = '#131A29';
-    ctx.strokeRect(x, y, cardSize, cardSize);
-  });
+    ctx.strokeStyle = '#131A29'
+    ctx.strokeRect(x, y, cardSize, cardSize)
+  })
 }
 
 // Handle click events on the canvas
 function handleClick(event: MouseEvent) {
-  if (isProcessing.value || isLoading.value || error.value) return;
-  const canvas = canvasRef.value;
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
+  if (isProcessing.value || isLoading.value || error.value)
+    return
+  const canvas = canvasRef.value
+  if (!canvas)
+    return
+  const rect = canvas.getBoundingClientRect()
   // Use CSS pixel coordinates for tile detection
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  const col = Math.floor(x / cardSize);
-  const row = Math.floor(y / cardSize);
-  const idx = row * gridCols.value + col;
-  const card = cards[idx];
-  if (!card || card.revealed || card.matched) return;
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+  const col = Math.floor(x / cardSize)
+  const row = Math.floor(y / cardSize)
+  const idx = row * gridCols.value + col
+  const card = cards[idx]
+  if (!card || card.revealed || card.matched)
+    return
 
   clickAudio.currentTime = 0
   clickAudio.play()
 
-  card.revealed = true;
-  flipped.push(idx);
-  drawBoard();
+  card.revealed = true
+  flipped.push(idx)
+  drawBoard()
 
   if (flipped.length === 2) {
-    moves.value++;
-    gameStore.currentGame!.moves = moves.value;
-    isProcessing.value = true;
-    const [i1, i2] = flipped;
+    moves.value++
+    gameStore.currentGame!.moves = moves.value
+    isProcessing.value = true
+    const [i1, i2] = flipped
     if (cards[i1].url === cards[i2].url) {
-      cards[i1].matched = true;
-      cards[i2].matched = true;
+      cards[i1].matched = true
+      cards[i2].matched = true
       pairAudio.currentTime = 0
       pairAudio.play()
-      resetSelection();
+      resetSelection()
       if (cards.every(c => c.matched)) {
-        isGameFinished.value = true;
-        const duration = Math.floor((Date.now() - startTime.value) / 1000);
-        gameStore.finishGame({ moves: moves.value, time: duration });
+        isGameFinished.value = true
+        const duration = Math.floor((Date.now() - startTime.value) / 1000)
+        gameStore.finishGame({ moves: moves.value, time: duration })
         endAudio.currentTime = 0
         endAudio.play()
         confetti({
           particleCount: 100,
           startVelocity: 30,
           spread: 360,
-        });
+        })
       }
-    } else {
+    }
+    else {
       setTimeout(() => {
-        cards[i1].revealed = false;
-        cards[i2].revealed = false;
-        resetSelection();
+        cards[i1].revealed = false
+        cards[i2].revealed = false
+        resetSelection()
         if (cards.every(c => c.matched)) {
-          isGameFinished.value = true;
-          const duration = Math.floor((Date.now() - startTime.value) / 1000);
-          gameStore.finishGame({ moves: moves.value, time: duration });
+          isGameFinished.value = true
+          const duration = Math.floor((Date.now() - startTime.value) / 1000)
+          gameStore.finishGame({ moves: moves.value, time: duration })
         }
-      }, 500);
+      }, 500)
     }
   }
 }
 
 // Reset flipped selections
 function resetSelection() {
-  flipped.splice(0, flipped.length);
-  isProcessing.value = false;
-  drawBoard();
+  flipped.splice(0, flipped.length)
+  isProcessing.value = false
+  drawBoard()
 }
 
 // Start a new game when user clicks
 function startGame(): void {
-  isGameStarted.value = true;
-  isGameFinished.value = false;
-  moves.value = 0;
-  startTime.value = Date.now();
-  gameStore.setNewGame({ difficulty: selectedDifficulty.value });
-  initGame();
-  nextTick(() => drawBoard());
+  isGameStarted.value = true
+  isGameFinished.value = false
+  moves.value = 0
+  startTime.value = Date.now()
+  gameStore.setNewGame({ difficulty: selectedDifficulty.value })
+  initGame()
+  nextTick(() => drawBoard())
 }
 
 // React to difficulty changes: reset game state when difficulty changes
 watch(selectedDifficulty, () => {
-  isGameStarted.value = false;
-  isGameFinished.value = false;
-  moves.value = 0;
-  gameStore.cancelGame();
-  resetSelection();
-});
+  isGameStarted.value = false
+  isGameFinished.value = false
+  moves.value = 0
+  gameStore.cancelGame()
+  resetSelection()
+})
 
 // On mount, start the game
 onMounted(() => {
-  initGame();
-  drawBoard();
-});
+  initGame()
+  drawBoard()
+})
 </script>
 
-
 <template>
-  <div class="bg-gray-900 text-white p-4 w-full">
-    <div class="max-w-6xl mx-auto">
-      <!-- Header -->
-      <header class="mb-8 text-center">
-        <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-          Memory Game - Counter Strike 2
-        </h1>
-      </header>
-
+  <div class="w-full">
+    <div class="mx-auto">
       <div class="flex flex-col lg:flex-row gap-8">
-        <!-- Left Column: Game -->
         <div class="flex-1">
           <!-- Controls -->
           <div class="bg-gray-800 rounded-lg p-4 mb-6 shadow-lg">
@@ -305,8 +303,8 @@ onMounted(() => {
                 <h2 class="text-2xl font-bold text-white mb-6">Gotowy na grę?</h2>
                 <p class="text-gray-300 mb-8 max-w-md">Kliknij przycisk poniżej, aby rozpocząć nową grę.</p>
                 <button
-                  @click="startGame"
                   class="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                  @click="startGame"
                 >
                   <span class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -324,9 +322,9 @@ onMounted(() => {
                   <p>Ruchy: {{ moves }}</p>
                 </div>
 
-                <button 
-                  @click="startGame"
+                <button
                   class="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                  @click="startGame"
                 >
                   <span class="flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -357,8 +355,8 @@ onMounted(() => {
                 <p class="text-lg font-medium text-white mb-4">Wystąpił błąd podczas ładowania gry</p>
                 <p class="text-gray-300 mb-6">{{ error }}</p>
                 <button
-                  @click="startGame()"
                   class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                  @click="startGame()"
                 >
                   Spróbuj ponownie
                 </button>
@@ -369,69 +367,9 @@ onMounted(() => {
                 ref="canvasRef"
                 :width="gridCols * cardSize"
                 :height="gridRows * cardSize"
-                @click="handleClick"
                 class="w-full rounded-lg shadow-lg cursor-pointer"
+                @click="handleClick"
               />
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Info Panel -->
-        <div class="lg:w-80 flex-shrink-0">
-          <div class="bg-gray-800 rounded-xl p-6 shadow-2xl sticky top-4 h-[600px]">
-            <h2 class="text-xl font-bold mb-4 text-white">Informacje o grze</h2>
-            
-            <!-- User Info -->
-            <div class="mb-6">
-              <h3 class="text-sm font-medium text-gray-400 mb-2">Gracz</h3>
-              <div class="bg-gray-900 rounded-lg p-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-                    {{ userStore.user.username?.charAt(0).toUpperCase() || 'U' }}
-                  </div>
-                  <div>
-                    <p class="font-medium text-white">{{ userStore.user.username || 'Anonimowy Gracz' }}</p>
-                    <p class="text-xs text-gray-400">ID: {{ userStore.user.id?.substring(0, 8) || '---' }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Game Stats -->
-            <div class="space-y-4">
-              <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Czas</h3>
-                <p class="text-white font-medium">
-                  {{ (gameStore.currentGame?.time || '-') }} {{ gameStore.currentGame?.time ? 'sekund' : '' }}
-                </p>
-              </div>
-              
-              <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Ilość ruchów</h3>
-                <p class="text-white font-mono">{{ gameStore.currentGame?.moves || '-' }}</p>
-              </div>
-            </div>
-
-            <!-- Game Instructions -->
-            <div class="mt-8 pt-6 border-t border-gray-700 space-y-4">          
-              <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Ilość rozegranych gier</h3>
-                <p class="text-white font-medium">
-                  {{ userStore.user.games?.length || '-' }}
-                </p>
-              </div>
-              <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Najlepszy czas</h3>
-                <p class="text-white font-medium">
-                  {{ gameStore.games.length > 0 ? gameStore.bestTime + ' sekund': '-' }}
-                </p>
-              </div>
-              <div>
-                <h3 class="text-sm font-medium text-gray-400 mb-1">Najmniejsza ilość ruchów</h3>
-                <p class="text-white font-medium">
-                  {{ gameStore.games.length > 0 ? gameStore.bestMoves : '-' }}
-                </p>
-              </div>
             </div>
           </div>
         </div>

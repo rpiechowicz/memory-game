@@ -13,8 +13,14 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "~icons": [
+        "node_modules/@iconify/json"
       ]
     },
+    "types": [
+      "@iconify/json"
+    ],
     "allowImportingTsExtensions": true,
     /* Linting */
     "strict": true,
