@@ -9,7 +9,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-dvh min-w-dvw bg-gray-900">
+  <div class="min-h-dvh min-w-dvw bg-gray-900 overflow-x-hidden">
     <router-view />
   </div>
 </template>
