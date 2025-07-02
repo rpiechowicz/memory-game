@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { GameDifficulty, GameDto, GameStatus } from '@/types/store/game'
+import { useGameStore } from '@/store/game'
 import { GameDifficulties, GameStatuses } from '@/types/store/game'
 
 const gameStore = useGameStore()

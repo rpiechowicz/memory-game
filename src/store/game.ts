@@ -1,14 +1,15 @@
 import type { GameDifficulty, GameDto } from '@/types/store/game'
 import { v4 as uuid } from 'uuid'
+import { useUserStore } from '@/store/user'
 import { GameStatuses } from '@/types/store/game'
-
-const userStore = useUserStore()
 
 const gameStorage = {
   games: useStorage<GameDto[]>('games', [], localStorage),
 }
 
 export const useGameStore = defineStore('game', () => {
+  const userStore = useUserStore()
+
   let intervalId: number | null = null
   const currentGame = ref<GameDto | null>(null)
   const games = computed<GameDto[]>(() => gameStorage.games.value)

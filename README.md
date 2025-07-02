@@ -10,7 +10,8 @@ Interaktywna gra typu *Memory* (odkryj pary kart) zbudowana w technologiach fron
 3. [Wymagania](#wymagania)
 4. [Instalacja](#instalacja)
 5. [Skrypty npm](#skrypty-npm)
-6. [Struktura projektu](#struktura-projektu)
+6. [Testy](#testy)
+7. [Struktura projektu](#struktura-projektu)
 7. [Autor i licencja](#autor-i-licencja)
 
 ## Zrzut ekranu
@@ -57,6 +58,19 @@ npm run preview
 | `preview` | Lokalny serwer podglądu zbudowanej aplikacji |
 | `lint` | Uruchamia ESLint na plikach źródłowych |
 | `lint:fix` | ESLint z automatyczną naprawą błędów |
+| `test` | Uruchamia wszystkie testy w trybie CLI |
+| `test:ui` | Interfejs graficzny Vitest |
+
+## Testy
+Projekt wykorzystuje [Vitest](https://vitest.dev/) z domyślnym środowiskiem **jsdom**.
+
+Przykładowy test znajduje się w `src/tests/sample.test.ts`.
+
+Uruchomienie:
+```bash
+npm run test       # tryb headless
+npm run test:ui    # UI Vitest
+```
 
 ## Struktura projektu (kluczowe pliki)
 ```
